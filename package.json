@@ -1,0 +1,20 @@
+{
+  "name": "npm-sbom-tool",
+  "version": "0.1.0",
+  "description": "An npm Software Bill of Materials (SBOM) generation tool and reusable engine",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check src/index.js src/engine/index.js src/scanner/index.js test/engine.test.js"
+  },
+  "keywords": [
+    "sbom",
+    "npm",
+    "security",
+    "dependency-analysis"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+
