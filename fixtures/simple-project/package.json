@@ -1,0 +1,8 @@
+{
+  "name": "simple-project",
+  "version": "1.0.0",
+  "description": "A simple test project with one direct dependency",
+  "dependencies": {
+    "is-odd": "3.0.1"
+  }
+}

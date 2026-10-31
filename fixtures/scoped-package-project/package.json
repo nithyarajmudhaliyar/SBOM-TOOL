@@ -1,0 +1,9 @@
+{
+  "name": "scoped-package-project",
+  "version": "1.0.0",
+  "description": "A project with scoped npm packages",
+  "dependencies": {
+    "@babel/core": "7.24.0",
+    "@types/node": "20.11.0"
+  }
+}

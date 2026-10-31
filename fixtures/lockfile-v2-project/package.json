@@ -1,0 +1,8 @@
+{
+  "name": "lockfile-v2-project",
+  "version": "1.0.0",
+  "description": "A project with lockfile version 2",
+  "dependencies": {
+    "ms": "2.1.3"
+  }
+}

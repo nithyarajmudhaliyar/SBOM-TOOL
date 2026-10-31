@@ -1,0 +1,17 @@
+{
+  "name": "mixed-dependencies-project",
+  "version": "1.0.0",
+  "description": "A project with all dependency types",
+  "dependencies": {
+    "ms": "2.1.3"
+  },
+  "devDependencies": {
+    "is-odd": "3.0.1"
+  },
+  "optionalDependencies": {
+    "color-name": "1.1.4"
+  },
+  "peerDependencies": {
+    "debug": "^4.0.0"
+  }
+}
