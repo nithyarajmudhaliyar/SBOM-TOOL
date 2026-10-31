@@ -1,0 +1,9 @@
+{
+  "name": "multiple-versions-project",
+  "version": "1.0.0",
+  "description": "A project where the same package exists at different versions",
+  "dependencies": {
+    "foo-parent-a": "1.0.0",
+    "foo-parent-b": "1.0.0"
+  }
+}
