@@ -8,6 +8,22 @@
     "npm-sbom-tool": "src/cli.js",
     "sbom-tool": "src/cli.js"
   },
+  "files": [
+    "src",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pankaj-codes06/SBOM-TOOL.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pankaj-codes06/SBOM-TOOL/issues"
+  },
+  "homepage": "https://github.com/pankaj-codes06/SBOM-TOOL#readme",
   "scripts": {
     "test": "node --test test/**/*.test.js",
     "test:cli": "node --test test/cli.test.js",
@@ -43,7 +59,7 @@
     "cyclonedx",
     "software-bill-of-materials"
   ],
-  "author": "",
+  "author": "Pankaj Kumar",
   "license": "MIT",
   "devDependencies": {
     "ajv": "^8.17.0",
