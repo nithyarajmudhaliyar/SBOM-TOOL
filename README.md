@@ -1,243 +1,199 @@
 # npm-sbom-tool
 
-A lightweight, reusable JavaScript engine and tool for generating Software Bill of Materials (SBOM) from npm projects.
+An enterprise-ready, zero-runtime-dependency JavaScript engine and command-line tool for generating Software Bill of Materials (SBOM), auditing security vulnerabilities, and detecting supply chain anomalies in npm projects.
 
-## Project Structure
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CycloneDX 1.7](https://img.shields.io/badge/CycloneDX-1.7-blue.svg)](https://cyclonedx.org/)
 
-```text
-├── package.json               # Project metadata, dependencies, bin, and scripts
-├── .gitignore                 # Git ignore configuration
-├── README.md                  # Project documentation and setup guide
-├── docs/
-│   └── scanner-contract.md    # Formal scanner data contract specification
-├── fixtures/                  # Comprehensive test fixture projects (workspaces & standalone)
-├── src/
-│   ├── index.js               # Main package entry point and public API exports
-│   ├── engine/                # Reusable engine core
-│   │   └── index.js           # Decoupled engine entry point
-│   ├── scanner/               # npm dependency scanner orchestration
-│   │   └── index.js           # scanProject and scanProjectSync implementation
-│   ├── fileDiscovery.js       # Target path and lockfile discovery
-│   ├── parser.js              # package.json and package-lock.json parsing
-│   ├── dependencyResolver.js  # Full graph resolution, multiple versions, and classifications
-│   ├── dependencyGraph.js     # Standalone dependency graph builder and edge resolver
-│   ├── workspaceDiscovery.js  # First-party component discovery and workspace resolution
-│   ├── cyclonedxGenerator.js  # CycloneDX 1.7 JSON SBOM generator
-│   ├── validator.js           # Structural and schema SBOM validation (validateStructure, validatePurl)
-│   ├── errors.js              # Standard error codes and status enums
-│   ├── osvClient.js           # OSV (Open Source Vulnerabilities) API client
-│   ├── vulnerabilityMatcher.js # SemVer comparison & OSV range evaluation
-│   ├── vulnerabilityFindings.js # Finding normalization, severity, & deduplication
-│   ├── vulnerabilityChecker.js # Vulnerability pipeline orchestration
-│   ├── anomalyDetector.js     # SBOM metadata and dependency graph anomaly detection
-│   ├── dependencyComparison.js # Standalone two-SBOM inventory diff & change classifier
-│   ├── reportGenerator.js     # Structured report generation and multi-file writer
-│   └── cli.js                 # Command-line interface
-└── test/
-    ├── engine.test.js         # Engine entry point tests
-    ├── parser.test.js         # Manifest and lockfile parser tests
-    ├── dependencyResolver.test.js # Dependency resolution tests
-    ├── dependencyGraph.test.js    # Graph builder tests
-    ├── workspaceDiscovery.test.js # First-party workspace discovery tests
-    ├── cyclonedxGenerator.test.js # SBOM output and graph tests
-    ├── validator.test.js      # Dedicated structural & schema validation tests (49 tests)
-    ├── scanner.test.js        # Scanner contract and fixture tests
-    ├── osvClient.test.js      # OSV API client unit tests
-    ├── vulnerabilityMatcher.test.js # Version matching & range evaluation tests
-    ├── vulnerabilityFindings.test.js # Finding normalization & deduplication tests
-    ├── vulnerabilityIntegration.test.js # End-to-end vulnerability pipeline tests
-    ├── anomalyDetector.test.js # SBOM anomaly detection unit & integration tests
-    ├── dependencyComparison.test.js # SBOM inventory comparison tests
-    ├── reportGenerator.test.js # Report generation unit and integration tests
-    ├── securitySbom.test.js   # Order 21 security and CycloneDX 1.7 validation tests
-    └── integration.test.js    # Full pipeline and CLI integration tests (37 scenarios)
-```
+---
 
-## Prerequisites
+## Table of Contents
 
-- **Node.js**: v18.0.0 or later (Node.js 20+ recommended)
-- **npm**: v9.0.0 or later
+- [Project Purpose](#project-purpose)
+- [Main Features](#main-features)
+- [Prerequisites & Requirements](#prerequisites--requirements)
+- [Installation](#installation)
+  - [Global CLI Installation](#global-cli-installation)
+  - [Local Project Dependency](#local-project-dependency)
+  - [Zero-Install Execution via npx](#zero-install-execution-via-npx)
+- [Command-Line Interface (CLI)](#command-line-interface-cli)
+  - [1. Invocation & Global Options](#1-invocation--global-options)
+  - [2. The `scan` Command](#2-the-scan-command)
+  - [3. The `sbom` Command](#3-the-sbom-command)
+  - [4. The `audit` Command](#4-the-audit-command)
+  - [5. Full-Pipeline Multi-File Report Structure (`--full`)](#5-full-pipeline-multi-file-report-structure---full)
+  - [6. Error Handling & Exit Codes](#6-error-handling--exit-codes)
+- [Programmatic API & Architecture](#programmatic-api--architecture)
+  - [Engine Entry Points](#engine-entry-points)
+  - [Project Scanner (`scanProject`)](#project-scanner-scanproject)
+  - [CycloneDX 1.7 Generation & Structural Validation](#cyclonedx-17-generation--structural-validation)
+  - [First-Party Component & Workspace Discovery](#first-party-component--workspace-discovery)
+  - [OSV Vulnerability Detection Pipeline](#osv-vulnerability-detection-pipeline)
+  - [Anomaly Detection](#anomaly-detection)
+  - [SBOM Inventory Comparison](#sbom-inventory-comparison)
+  - [Report Generation](#report-generation)
+- [Development Setup](#development-setup)
+- [Test Execution](#test-execution)
+- [Known Limitations](#known-limitations)
+- [License Information](#license-information)
+- [Repository & Issue Reporting](#repository--issue-reporting)
+
+---
+
+## Project Purpose
+
+In modern software supply chains, deep visibility into software components is essential for security compliance, license tracking, and vulnerability remediation.
+
+`npm-sbom-tool` generates deterministic, referentially integral **CycloneDX 1.7** JSON Software Bill of Materials (SBOM) for npm applications and monorepos. It resolves complete dependency trees (direct, transitive, and local workspaces) entirely offline from project manifests and lockfiles without running arbitrary package lifecycle scripts.
+
+Furthermore, `npm-sbom-tool` provides integrated security auditing against the [Open Source Vulnerabilities (OSV)](https://osv.dev/) database, detects structural anomalies and data smells across SBOM components, and allows inventory diffing between different releases or build artifacts.
+
+---
+
+## Main Features
+
+- **Standard CycloneDX 1.7 Output**: Generates compliant JSON SBOMs containing root application metadata, component inventories, and comprehensive dependency graph edges (`dependsOn`).
+- **Offline Structural Validation**: Built-in, zero-network validation (`validateStructure`) verifies required metadata, PURL syntax, duplicate `bom-ref`s, and dependency edge referential integrity.
+- **First-Party Monorepo Discovery**: Native detection of npm workspaces (`workspaces` array or object syntax, glob wildcards, pattern negations, scoped packages, and internal symlinks).
+- **Automated OSV Vulnerability Matching**: Queries the OSV API with batching and evaluates advisories against installed versions using precise SemVer 2.0.0 rules (handling `introduced`, `fixed`, `last_affected`, and `limit` events).
+- **Component & Graph Anomaly Detection**: Proactively uncovers supply chain smells, such as missing or non-SemVer versions, invalid/missing PURLs, duplicate `bom-ref`s, and dangling dependency edges.
+- **SBOM Inventory Comparison**: Standalone or integrated semantic comparison of two SBOMs, categorizing packages into `added`, `removed`, `upgrade`, `downgrade`, `metadata-changed`, or `unchanged`.
+- **Comprehensive Multi-File Reports**: Generates unified executive reports (`report.json`) as well as dedicated artifact files (`sbom.json`, `vulnerabilities.json`, `anomalies.json`).
+- **Zero External Runtime Dependencies**: Implemented entirely with native Node.js standard libraries (`node:fs`, `node:path`, `node:crypto`, `node:https`), ensuring minimal attack surface, fast installation, and rock-solid portability.
+
+---
+
+## Prerequisites & Requirements
+
+- **Node.js**: `>= 18.0.0` (Node.js 20+ LTS recommended). Tested across Node.js 18, 20, and 22.
+- **npm**: `>= 9.0.0`
+- **Supported Package Managers**: `npm` with `package-lock.json` versions 1, 2, and 3. Projects using Yarn or pnpm are identified and rejected with standard diagnostic errors.
+- **Network Access**: Required only for OSV vulnerability queries (`https://api.osv.dev`). All core SBOM generation, workspace discovery, validation, and anomaly detection operate 100% offline.
+
+---
 
 ## Installation
 
-Install dependencies using npm:
+### Global CLI Installation
+
+Install globally via npm to make the CLI available across your system:
 
 ```bash
-npm install
+npm install -g npm-sbom-tool
 ```
 
-## Available Scripts
+Verify that the CLI executable is installed and accessible:
 
-- **`npm test`**: Runs the complete automated test suite via Node's native test runner (`node --test`).
-- **`npm run test:scanner`**: Runs integration tests for the project scanner across fixture scenarios.
-- **`npm run test:parser`**: Runs unit tests for `package.json` and `package-lock.json` parsing.
-- **`npm run test:resolver`**: Runs unit tests for dependency graph resolution and classification.
-- **`npm run test:graph`**: Runs unit tests for standalone dependency graph building.
-- **`npm run test:workspace`**: Runs unit tests for first-party component and workspace discovery.
-- **`npm run test:cyclonedx`**: Runs unit tests for CycloneDX 1.7 SBOM generation and schema validation.
-- **`npm run test:validator`**: Runs unit tests for CycloneDX structural and schema validation.
-- **`npm run test:integration`**: Runs end-to-end pipeline and CLI integration tests.
-- **`npm run test:osv`**: Runs unit tests for the OSV vulnerability API client.
-- **`npm run test:matcher`**: Runs unit tests for semantic version matching and range evaluation.
-- **`npm run test:findings`**: Runs unit tests for finding extraction and deduplication.
-- **`npm run test:vuln`**: Runs comprehensive integration tests for vulnerability detection.
-- **`npm run test:anomaly`**: Runs unit and integration tests for SBOM anomaly detection.
-- **`npm run test:compare`**: Runs unit tests for SBOM dependency inventory comparison.
-- **`npm run test:order18`**: Runs end-to-end integration tests for Order 18 engine orchestration.
-- **`npm run test:order19`**: Runs unit and integration tests for Order 19 report generation.
-- **`npm run test:order20`**: Runs end-to-end scanner tests for Order 20.
-- **`npm run test:order21`**: Runs security and CycloneDX 1.7 SBOM validation tests for Order 21.
-- **`npm run test:cli`**: Runs the CLI command integration test suite.
-- **`npm run scan <path>`**: Runs the CLI scanner against a specified target project path.
-- **`npm run sbom <path>`**: Generates a CycloneDX SBOM for a target project path.
-- **`npm run audit <path>`**: Runs vulnerability and anomaly security analysis on a target project.
-- **`npm run check`**: Runs syntax validation checks across all source files using `node --check`.
-
-## First-Party Component & Workspace Support
-
-`npm-sbom-tool` provides built-in discovery and representation for first-party components:
-
-1. **Root Application**:
-   - Always recognized as a first-party component (`isFirstParty: true`, `classification: 'first-party'`, `origin: 'first-party'`).
-   - Placed in `metadata.component` in the generated CycloneDX SBOM.
-
-2. **Local npm Workspaces**:
-   - Discovers workspaces configured via array syntax (`"workspaces": ["packages/*"]`) or object syntax (`"workspaces": { "packages": ["packages/*"] }`).
-   - Supports single wildcards (`*`), recursive wildcards (`**`), single-character wildcards (`?`), and pattern negations (`!pattern`).
-   - Resolves workspace symlinks (`link: true`) in `package-lock.json` v2/v3, linking them directly to local components without duplicate entries.
-   - Validates declared version ranges with `isVersionCompatible` against local workspace versions.
-   - Distinctly classifies first-party workspaces (`isFirstParty: true`, `dependencyType: 'workspace'`) from external registry packages (`isFirstParty: false`, `dependencyType: 'direct' | 'transitive'`).
-
-## CycloneDX SBOM Generation & Structural Validation
-
-`npm-sbom-tool` generates standard **CycloneDX 1.7** JSON Software Bill of Materials (SBOM):
-
-- **Automatic Structural Validation**: Every generated BOM is validated via `validateStructure()` before return. Checks top-level fields, metadata, timestamps, root component, components array, PURL formats, duplicate `bom-ref`s, and dependency edges.
-- **Referential Integrity**: Guarantees no dangling references. Every dependency `ref` and child in `dependsOn` must exist in `metadata.component` or `components`.
-- **Protected Pipeline**: If validation fails, `status` becomes `'partial'`, `bom` is set to `null`, and validation errors are surfaced in `result.validation` and `result.errors`.
-- **Partial Scan Preservation**: When a lockfile is missing or corrupted, `bom: null` and `validation: null` are preserved. The tool never outputs an invalid or fabricated SBOM.
-- **Zero Network Dependency**: Built-in structural validation runs completely offline without network calls. Optional schema validation (`validateAgainstSchema`) is available when callers provide a schema object.
-
-## Scanner Data Contract
-
-For complete input/output specifications, component schemas, error codes, and fixture mappings, see the [Scanner Contract Specification](docs/scanner-contract.md).
-
-## Programmatic Usage
-
-```javascript
-import {
-  scanProject,
-  scanProjectSync,
-  generateCycloneDX,
-  validateStructure,
-  validateAgainstSchema,
-  validatePurl,
-  runEngine,
-  discoverFirstPartyComponents,
-} from "npm-sbom-tool";
-
-// 1. Asynchronously scan an npm project (includes anomaly detection)
-const result = await scanProject("./fixtures/workspace-with-lockfile-project");
-
-console.log(result.status);           // 'complete' | 'partial' | 'failed'
-console.log(result.projectMetadata);  // { name: 'workspace-with-lockfile-project', version: '1.0.0' }
-console.log(result.components);       // Array of discovered components (root + workspaces + dependencies)
-console.log(result.dependencyEdges);  // Adjacency list mapping bomRef -> [child bomRefs]
-console.log(result.bom);              // CycloneDX 1.7 JSON SBOM object (or null for partial/failed)
-console.log(result.validation);       // { valid: true, errors: [], warnings: [] } (or null if no BOM)
-console.log(result.anomalies);        // { findings: [...], summary: { total, bySeverity, byType } }
-
-// 2. Scan with dependency comparison against a previous SBOM
-const compared = await scanProject("./fixtures/simple-project", { previousBom: result.bom });
-console.log(compared.comparison);     // { status: 'completed', summary, added, removed, changed, unchanged }
-
-// 3. Synchronously scan an npm project (guaranteed identical result)
-const syncResult = scanProjectSync("./fixtures/simple-project");
-console.log(syncResult.status);       // 'complete'
-console.log(syncResult.validation.valid); // true
-
-// 4. Standalone structural validation of any CycloneDX BOM
-const validation = validateStructure(result.bom);
-console.log(validation.valid);        // true
-console.log(validation.errors);       // []
-
-// 5. Standalone PURL validation
-const purlCheck = validatePurl("pkg:npm/%40babel/core@7.24.0");
-console.log(purlCheck.valid);         // true
+```bash
+# Verify using either binary name:
+sbom-tool --version
+npm-sbom-tool --version
 ```
+
+### Local Project Dependency
+
+Install locally as a development dependency in your project:
+
+```bash
+npm install --save-dev npm-sbom-tool
+```
+
+Once installed locally, execute commands through `npx`:
+
+```bash
+npx sbom-tool scan .
+```
+
+### Zero-Install Execution via npx
+
+Run commands directly without prior installation:
+
+```bash
+npx npm-sbom-tool --help
+# or
+npx sbom-tool scan ./my-project
+```
+
+---
 
 ## Command-Line Interface (CLI)
 
-`npm-sbom-tool` provides a command-line interface executable via `sbom-tool`, `npm-sbom-tool`, or directly via `node src/cli.js`.
+`npm-sbom-tool` provides two equivalent binary aliases: **`sbom-tool`** and **`npm-sbom-tool`**.
 
 ### 1. Invocation & Global Options
 
 ```bash
-# Display general help and available commands
+# Display general help and command list
 sbom-tool --help
 
-# Display tool version
+# Display installed version
 sbom-tool --version
 ```
 
-Global options:
-- `--help, -h`: Show general help or command-specific help.
-- `--version, -V`: Display the installed version.
+#### Global Options
 
-Available commands:
-- `scan`: Scan an npm project and inspect its dependency tree.
-- `sbom`: Generate a standard CycloneDX SBOM document.
-- `audit`: Perform security vulnerability and anomaly analysis on a project.
+| Option | Shorthand | Description |
+|---|---|---|
+| `--help` | `-h` | Display general help or command-specific help message. |
+| `--version` | `-V` | Display the installed version number. |
+
+#### Available Commands
+
+- **`scan`**: Scan an npm project and inspect its dependency tree.
+- **`sbom`**: Generate a standard CycloneDX 1.7 JSON SBOM document.
+- **`audit`**: Perform security vulnerability and anomaly analysis on a project.
 
 ---
 
 ### 2. The `scan` Command
 
-The `scan` command inspects an npm project directory, discovers manifests and lockfiles, resolves direct, transitive, and workspace dependencies, and displays a comprehensive summary.
+The `scan` command inspects an npm project directory, discovers manifests and lockfiles, resolves dependencies, and displays a comprehensive summary.
 
 ```bash
-# Basic scan of the current directory
+# Scan current directory
 sbom-tool scan .
 
-# Complete full-pipeline scan (SBOM, validation, vulnerabilities, anomalies, and comparison)
-sbom-tool scan ./my-application --full
+# Scan a specific project directory
+sbom-tool scan ./my-project
 
-# Complete scan writing reports to custom output directory
-sbom-tool scan ./my-application --full --output-dir ./reports
+# Full-pipeline scan: SBOM generation, validation, OSV vulnerabilities, and anomalies
+sbom-tool scan ./my-project --full
 
-# Scan a target project directory
-sbom-tool scan ./my-application
+# Full-pipeline scan writing multi-file report to a custom directory
+sbom-tool scan ./my-project --full --output-dir ./reports
 
-# Output structured scan results in JSON format directly to stdout
-sbom-tool scan ./my-application --json
+# Output structured scan JSON directly to stdout (clean for piping)
+sbom-tool scan ./my-project --json
 
-# Scan and save the scan report or generated SBOM to a file
-sbom-tool scan ./my-application --output ./reports/scan-report.json
+# Save scan report or generated SBOM to a custom file
+sbom-tool scan ./my-project --output ./reports/scan-report.json
 
 # Scan with OSV vulnerability detection enabled
-sbom-tool scan ./my-application --vulnerabilities
+sbom-tool scan ./my-project --vulnerabilities
 
 # Scan and compare dependency inventory against a previous CycloneDX SBOM
-sbom-tool scan ./my-application --previous-sbom ./prev-bom.cdx.json
+sbom-tool scan ./my-project --previous-sbom ./prev-bom.cdx.json
 
-# Complete full scan with previous SBOM comparison
-sbom-tool scan ./my-application --full --previous-sbom ./prev-bom.cdx.json
-
-# Display scan-specific options
+# Display scan-specific help
 sbom-tool scan --help
 ```
 
-Supported options:
-- `--full`: Perform a complete full-pipeline scan: dependency discovery, CycloneDX SBOM generation, structural validation, OSV vulnerability detection, anomaly detection, and dependency comparison (when `--previous-sbom` is supplied). Generates a multi-file report directory (`output/`).
-- `--output, -o <path>`: Write scan report (or generated SBOM) to file, or output directory when used with `--full`.
-- `--output-dir <path>`: Destination directory for multi-file report structure (`sbom.json`, `vulnerabilities.json`, `anomalies.json`, `report.json`).
-- `--json`: Output structured scan results (or combined report when `--full` is used) in JSON format to stdout.
-- `--vulnerabilities, -v`: Enable OSV vulnerability analysis for discovered dependencies.
-- `--anomalies, -a`: Enable anomaly detection explicitly.
-- `--previous-sbom <path>`: Path to a previous CycloneDX SBOM JSON file for dependency comparison.
-- `--help, -h`: Show scan command help.
+#### `scan` Options
 
-Example terminal output:
+| Option | Shorthand | Description |
+|---|---|---|
+| `--full` | | Perform a complete full-pipeline scan (SBOM generation, validation, OSV vulnerabilities, anomalies, and comparison if `--previous-sbom` provided). |
+| `--output <path>` | `-o <path>` | Write scan report (or generated SBOM) to file, or output directory when used with `--full`. |
+| `--output-dir <path>` | | Directory to write multi-file report (`sbom.json`, `vulnerabilities.json`, `anomalies.json`, `report.json`). |
+| `--json` | | Output structured scan results in JSON format directly to stdout. |
+| `--vulnerabilities` | `-v` | Enable OSV vulnerability analysis for discovered dependencies. |
+| `--anomalies` | `-a` | Enable anomaly detection explicitly. |
+| `--previous-sbom <path>` | | Path to a previous CycloneDX SBOM JSON file for dependency comparison. |
+| `--help` | `-h` | Show scan command help message. |
+
+#### Example Terminal Output (`scan`)
+
 ```text
 Scanning project: /path/to/my-application
 
@@ -254,33 +210,37 @@ Workspace packages: 2
 
 ### 3. The `sbom` Command
 
-The `sbom` command generates an industry-standard **CycloneDX 1.7** JSON Software Bill of Materials (SBOM) for complete npm projects.
+The `sbom` command generates an industry-standard **CycloneDX 1.7** JSON Software Bill of Materials (SBOM) for an npm project.
 
 ```bash
 # Generate CycloneDX SBOM (defaults to ./sbom.cdx.json)
-sbom-tool sbom ./my-application
+sbom-tool sbom ./my-project
 
-# Generate CycloneDX SBOM and save to a custom file path
-sbom-tool sbom ./my-application --output ./bom.cdx.json
-sbom-tool sbom ./my-application -o ./reports/my-app-bom.json
+# Save CycloneDX SBOM to a custom file path
+sbom-tool sbom ./my-project --output ./bom.cdx.json
+sbom-tool sbom ./my-project -o ./reports/sbom.json
 
-# Output CycloneDX SBOM directly to stdout (useful for piping into jq or files)
-sbom-tool sbom ./my-application --json > sbom.json
+# Stream CycloneDX SBOM JSON directly to stdout
+sbom-tool sbom ./my-project --json > sbom.json
 
-# Display sbom-specific options
+# Display sbom-specific help
 sbom-tool sbom --help
 ```
 
-Supported options:
-- `--output, -o <path>`: Output file path for the generated CycloneDX SBOM. Defaults to `./sbom.cdx.json` when not streaming to stdout.
-- `--json`: Output CycloneDX SBOM JSON directly to stdout without diagnostic logs.
-- `--help, -h`: Show sbom command help.
+#### `sbom` Options
 
-Validation & Safety:
-- Automatic directory creation: Parent directories of the output path are created automatically if missing.
-- Project file protection: Rejects output paths that would overwrite project manifests (`package.json`, `package-lock.json`).
-- Directory collision check: Rejects output paths pointing to existing directories.
-- Lockfile requirement: A valid lockfile (`package-lock.json`) is required for complete SBOM generation; partial scans exit with an error.
+| Option | Shorthand | Description |
+|---|---|---|
+| `--output <path>` | `-o <path>` | Output file path for generated CycloneDX SBOM (Default: `./sbom.cdx.json`). |
+| `--json` | | Output CycloneDX SBOM JSON directly to stdout without diagnostic logs. |
+| `--help` | `-h` | Show sbom command help message. |
+
+#### Built-in Safety & Validation Checks
+
+- **Automatic Directory Creation**: Parent directories of the output path are created automatically if they do not exist.
+- **Manifest Protection**: Rejects output paths that would overwrite project manifests (`package.json`, `package-lock.json`).
+- **Directory Collision Prevention**: Rejects output paths pointing to existing directories unless an output filename is specified.
+- **Lockfile Enforcement**: A valid `package-lock.json` is required for complete SBOM generation; partial scans fail safely with a diagnostic error.
 
 ---
 
@@ -290,39 +250,45 @@ The `audit` command evaluates a target project against known security vulnerabil
 
 ```bash
 # Run both vulnerability analysis and anomaly detection (default)
-sbom-tool audit ./my-application
+sbom-tool audit ./my-project
 
 # Run vulnerability analysis only
-sbom-tool audit ./my-application --vuln
+sbom-tool audit ./my-project --vuln
 
 # Run anomaly analysis only
-sbom-tool audit ./my-application --anomaly
+sbom-tool audit ./my-project --anomaly
 
 # Run both analyses explicitly
-sbom-tool audit ./my-application --vuln --anomaly
+sbom-tool audit ./my-project --vuln --anomaly
 
-# Run audit with inventory comparison against a previous CycloneDX SBOM
-sbom-tool audit ./my-application --previous-sbom ./prev-bom.cdx.json
+# Audit with inventory comparison against a previous CycloneDX SBOM
+sbom-tool audit ./my-project --previous-sbom ./prev-bom.cdx.json
 
 # Save structured audit report to a JSON file
-sbom-tool audit ./my-application --output ./audit-report.json
+sbom-tool audit ./my-project --output ./audit-report.json
 
 # Output structured audit report in JSON format to stdout
-sbom-tool audit ./my-application --json
+sbom-tool audit ./my-project --json
 
-# Display audit-specific options
+# Display audit-specific help
 sbom-tool audit --help
 ```
 
-Supported options:
-- `--vuln, -v`: Perform vulnerability analysis only (or explicitly).
-- `--anomaly, -a`: Perform anomaly analysis only (or explicitly).
-- `--previous-sbom <path>`: Path to a previous CycloneDX SBOM JSON file for dependency comparison.
-- `--output, -o <path>`: Output file path for the structured audit report JSON.
-- `--json`: Output structured audit report JSON directly to stdout.
-- `--help, -h`: Show audit command help.
+#### `audit` Options
 
-Example terminal output:
+| Option | Shorthand | Description |
+|---|---|---|
+| `--vuln` | `-v` | Perform vulnerability analysis only (or explicitly). |
+| `--anomaly` | `-a` | Perform anomaly analysis only (or explicitly). |
+| `--previous-sbom <path>` | | Path to a previous CycloneDX SBOM JSON file for dependency comparison. |
+| `--output <path>` | `-o <path>` | Output file path for the structured audit report JSON. |
+| `--json` | | Output structured audit report JSON directly to stdout. |
+| `--help` | `-h` | Show audit command help message. |
+
+*Note: When neither `--vuln` nor `--anomaly` is specified, both analyses are performed by default.*
+
+#### Example Terminal Output (`audit`)
+
 ```text
 Security Audit
 
@@ -355,16 +321,17 @@ Audit completed (Status: completed).
 
 ### 5. Full-Pipeline Multi-File Report Structure (`--full`)
 
-When running `sbom-tool scan ./my-project --full`, the tool runs all supported scanning and security features in a single automated step:
+When running `sbom-tool scan ./my-project --full`, the tool executes all supported scanning, SBOM generation, validation, and security analysis capabilities in a single unified execution:
+
 1. Manifest parsing and dependency graph resolution
 2. First-party workspace package discovery
 3. CycloneDX 1.7 JSON SBOM generation
 4. Built-in structural SBOM validation
 5. OSV API vulnerability analysis for third-party packages
 6. Component metadata and graph anomaly detection
-7. Dependency comparison (when `--previous-sbom <path>` is provided)
+7. Dependency comparison (when `--previous-sbom <path>` is supplied)
 
-#### Output Files
+#### Multi-File Report Directory
 
 By default, the `--full` option outputs a structured report directory (default `./output/` or configurable via `--output-dir <path>` or `--output <dir>`):
 
@@ -376,7 +343,7 @@ output/
 └── report.json           # Comprehensive combined scan and security report
 ```
 
-#### File Roles and Contents
+#### Output Artifact Descriptions
 
 | Output File | Format | Description |
 |---|---|---|
@@ -385,67 +352,11 @@ output/
 | `anomalies.json` | JSON | Structured findings for invalid SemVer versions, missing/malformed PURLs, dangling graph references, and duplicate `bom-ref`s with human-readable impact explanations. |
 | `report.json` | JSON | Unified executive scan report combining scan metadata, project info, SBOM inventory summary, validation results, vulnerability findings, anomaly findings, comparison findings (if requested), and overall status. |
 
-#### Combined Report Schema (`report.json`)
-
-```json
-{
-  "scan": {
-    "tool": "npm-sbom-tool",
-    "version": "0.1.0",
-    "timestamp": "2026-11-13T23:45:00.000Z",
-    "projectPath": "/path/to/my-application",
-    "status": "complete"
-  },
-  "project": {
-    "name": "my-application",
-    "version": "1.0.0",
-    "path": "/path/to/my-application"
-  },
-  "sbom": {
-    "format": "CycloneDX",
-    "specVersion": "1.7",
-    "serialNumber": "urn:uuid:...",
-    "version": 1,
-    "componentsCount": 25,
-    "dependenciesCount": 25,
-    "summary": {
-      "totalComponents": 25,
-      "directDependencies": 8,
-      "transitiveDependencies": 17,
-      "workspacePackages": 2
-    }
-  },
-  "validation": {
-    "valid": true,
-    "errors": [],
-    "warnings": []
-  },
-  "vulnerabilities": {
-    "status": "completed",
-    "scannedPackages": 25,
-    "totalPackages": 25,
-    "vulnerablePackages": 2,
-    "summary": { "total": 2, "critical": 0, "high": 1, "medium": 1, "low": 0, "unknown": 0 },
-    "findings": [ ... ]
-  },
-  "anomalies": {
-    "status": "completed",
-    "total": 1,
-    "summary": { "total": 1, "bySeverity": { "error": 0, "warning": 1, "info": 0 }, "byType": { "MISSING_PURL": 1 } },
-    "findings": [ ... ]
-  },
-  "comparison": null,
-  "errors": [],
-  "warnings": [],
-  "status": "complete"
-}
-```
-
 ---
 
 ### 6. Error Handling & Exit Codes
 
-The CLI returns standard, meaningful process exit codes:
+The CLI returns standard process exit codes:
 
 | Exit Code | Meaning | Scenarios |
 |---|---|---|
@@ -454,272 +365,13 @@ The CLI returns standard, meaningful process exit codes:
 
 All errors are reported with actionable human-readable messages without exposing internal stack traces by default. Diagnostic and error messages are routed to `stderr`, keeping `stdout` clean for JSON consumers.
 
-## OSV Vulnerability API Client
+---
 
-The `osvClient` module queries the [OSV (Open Source Vulnerabilities)](https://osv.dev/) API to retrieve known vulnerabilities for npm dependencies.
+## Programmatic API & Architecture
 
-### Query a single package
+The `npm-sbom-tool` package exposes unified programmatic entry points for use in Node.js applications and CI/CD pipelines.
 
-```javascript
-import { queryPackage } from 'npm-sbom-tool';
-
-const result = await queryPackage({ name: 'lodash', version: '4.17.20' });
-// result.package    → { name: 'lodash', version: '4.17.20', ecosystem: 'npm' }
-// result.vulnerabilities → [{ id, summary, details, aliases, severity, references, affected, published, modified }]
-```
-
-### Query multiple packages
-
-```javascript
-import { queryPackages } from 'npm-sbom-tool';
-
-const results = await queryPackages([
-  { name: 'lodash', version: '4.17.20' },
-  { name: 'express', version: '4.18.2' },
-]);
-// Each entry: { package, vulnerabilities } on success
-// On per-package failure: { package, vulnerabilities: [], error: { code, message } }
-```
-
-### Input
-
-- `name` (string): npm package name.
-- `version` (string): Installed version.
-- `ecosystem` (string, optional): Defaults to `'npm'`.
-
-### Output
-
-Each vulnerability object contains:
-
-| Field | Type | Description |
-|---|---|---|
-| `id` | `string \| null` | OSV vulnerability ID (e.g. `GHSA-...`, `CVE-...`). |
-| `summary` | `string \| null` | Short vulnerability summary. |
-| `details` | `string \| null` | Detailed description. |
-| `aliases` | `string[]` | Alternative IDs (e.g. CVE aliases). |
-| `severity` | `object[]` | CVSS severity scores. |
-| `references` | `object[]` | Advisory URLs and references. |
-| `affected` | `object[]` | Affected package/version information. |
-| `published` | `string \| null` | Publication timestamp. |
-| `modified` | `string \| null` | Last modification timestamp. |
-
-### Error handling
-
-Errors are thrown as `OsvError` with a `code` property:
-
-| Code | Meaning |
-|---|---|
-| `NETWORK_ERROR` | Network connectivity failure. |
-| `REQUEST_TIMEOUT` | Request exceeded 10s timeout. |
-| `API_ERROR` | Non-2xx HTTP response from OSV API. |
-| `RATE_LIMITED` | HTTP 429 rate limit exceeded. |
-| `INVALID_INPUT` | Package object missing or has empty name/version/ecosystem. |
-| `INVALID_RESPONSE` | Malformed or unexpected JSON response. |
-
-When using `queryPackages`, individual failures are captured per-package in the `error` field without failing the entire batch.
-
-## Integrated Vulnerability Detection Pipeline
-
-The vulnerability detection pipeline connects SBOM dependency generation with the OSV API and semantic version matching engine.
-
-### How It Works
-
-1. **Extraction & Deduplication**: Extracts all third-party dependencies from the resolved SBOM or scan result. Root applications and first-party local workspace packages are excluded from external queries. Packages are deduplicated by `name@version` so each unique version is queried only once.
-2. **OSV API Queries**: Dependencies are queried against the official OSV API (`https://api.osv.dev/v1/query`) in concurrent batches (default concurrency: 8, configurable).
-3. **SemVer Range Matching**: Every advisory is evaluated against the installed semantic version using native SemVer 2.0.0 rules:
-   - `introduced`: inclusive lower bound (or `'0'` for beginning of time).
-   - `fixed`: exclusive upper bound (version `< fixed` is vulnerable, `>= fixed` is unaffected).
-   - `last_affected`: inclusive upper bound.
-   - `limit`: exclusive upper bound.
-4. **Direct & Transitive Classification**: Leverages the CycloneDX dependency graph to accurately classify each finding as `direct` or `transitive`.
-5. **Metadata Extraction & Deduplication**: Extracts CVSS and ecosystem severity scores, semantic fixed versions (excluding git hashes), aliases, summaries, and references. Identical findings for the same vulnerability, package, and version are merged cleanly.
-
-### Enabling Vulnerability Detection
-
-#### CLI Flag
-```bash
-node src/cli.js scan ./path/to/project --vulnerabilities
-# or short flag:
-node src/cli.js scan ./path/to/project -v
-```
-
-#### Programmatic API
-```javascript
-import { scanProject, checkVulnerabilities } from 'npm-sbom-tool';
-
-// 1. Through scanProject options
-const result = await scanProject('./fixtures/simple-project', {
-  vulnerabilities: true,
-  concurrency: 8, // Optional: concurrency limit
-  timeout: 10000, // Optional: timeout in ms
-});
-
-console.log(result.vulnerabilities.status); // 'completed' | 'partial' | 'failed'
-console.log(result.vulnerabilities.findings);
-
-// 2. Standalone vulnerability checker on existing components or BOM
-const vulns = await checkVulnerabilities(result.bom);
-console.log(vulns.findings);
-```
-
-### Interpreting Findings
-
-Each finding object contains:
-
-```typescript
-interface VulnerabilityFinding {
-  id: string; // OSV or GHSA identifier (e.g., 'GHSA-odd-01')
-  aliases: string[]; // Associated CVEs (e.g., ['CVE-2021-99999'])
-  packageName: string; // npm package name
-  ecosystem: string; // 'npm'
-  installedVersion: string; // Exact installed version (e.g., '3.0.1')
-  dependencyType: 'direct' | 'transitive' | 'unknown';
-  status: 'vulnerable' | 'unable-to-evaluate';
-  severity: { type: string; score: string } | null;
-  summary: string | null;
-  details: string | null;
-  affectedRanges: Array<{ type: string; events: Array<object> }>;
-  fixedVersions: string[]; // Valid SemVer versions that resolve the issue
-  references: Array<{ type: string; url: string }>;
-}
-```
-
-#### Status Meanings
-- **`vulnerable`**: The installed version falls definitively within the advisory's affected SemVer range.
-- **`unaffected`**: The installed version is outside the affected range or equal to/above the fixed version (unaffected packages do not produce vulnerability findings).
-- **`unable-to-evaluate`**: The advisory contains only non-SemVer ranges (e.g. Git commit SHAs) or malformed range events, preventing deterministic version evaluation. Only included when `options.includeUnableToEvaluate = true`.
-
-#### Overall Scan Status
-- **`completed`**: All eligible packages were successfully queried against OSV.
-- **`partial`**: One or more package queries encountered network or timeout errors, but other packages succeeded. Successful findings are retained; failed packages are recorded in `errors` and not assumed to be safe.
-- **`failed`**: All package queries failed (e.g., complete network outage).
-
-### Failure Isolation & SBOM Independence
-Vulnerability API failures are completely isolated from SBOM generation. Even if the network is down or OSV returns HTTP 500/429, the generated CycloneDX SBOM remains 100% valid, intact, and written to disk.
-
-### Limitations
-- Only npm ecosystem advisories are evaluated.
-- Advisories without SEMVER ranges (e.g. pure Git commit SHAs without version tags) cannot be evaluated against installed npm versions.
-- Vulnerability analysis requires a complete scan with a valid lockfile; partial scans (manifest-only) skip vulnerability detection.
-
-## Anomaly Detection
-
-Anomaly detection automatically analyzes generated CycloneDX SBOMs during complete scans to identify metadata inconsistencies, invalid versions, malformed identifiers, and broken graph relationships. Findings are attached to the scan result under `result.anomalies`.
-
-### Anomaly Output Structure
-
-Each anomaly finding contains:
-
-```typescript
-interface AnomalyFinding {
-  id: string;                                 // e.g. "ANOMALY-001"
-  type: string;                               // e.g. "MISSING_PURL", "INVALID_VERSION"
-  severity: 'error' | 'warning' | 'info';     // Finding severity level
-  affectedComponent: ComponentSnapshot | null;// Associated component metadata
-  explanation: string;                        // Clear explanation (why flagged, inconsistency detected, why it matters)
-}
-```
-
-Each `explanation` explicitly details:
-1. **Why the component was flagged** (e.g. missing name, invalid SemVer, unresolvable reference).
-2. **What inconsistency or unusual behavior was detected** (e.g. specific field values or graph edges).
-3. **Why the finding matters** (impact on supply chain traceability, vulnerability matching, or tooling interoperability).
-
-### Separation from Vulnerabilities & Non-Blocking Nature
-
-- **Strict Separation**: Anomalies are structural and metadata findings, completely separate from OSV security vulnerabilities (`result.vulnerabilities`). Anomalies are never categorized as vulnerabilities.
-- **Non-Invalidating**: Anomalies are informational audit findings; they do not cause a valid CycloneDX SBOM to be rejected or invalidated.
-- **Failure Resilience**: Anomaly analysis failures are safely caught and never cause a scan to fail.
-
-```javascript
-import { detectAnomalies, scanProject } from 'npm-sbom-tool';
-
-// Standalone anomaly detection
-const { anomalies, summary } = detectAnomalies(result.bom, { summary: true });
-
-// Integrated in scanProject()
-const scanResult = await scanProject('./my-app');
-console.log(scanResult.anomalies.findings); // Array of structured anomaly records
-console.log(scanResult.anomalies.summary);  // { total, bySeverity, byType }
-```
-
-For full details on anomaly types, severity levels, and options, see the [Anomaly Detection Specification](docs/anomaly-detection.md).
-
-## Dependency Comparison
-
-The dependency comparison module compares two SBOM inventories (`previousBom` vs `currentBom`) and classifies dependency changes into **added**, **removed**, **changed** (upgrades, downgrades, metadata changes, non-comparable version changes), and **unchanged** components.
-
-### Integrated Scanning Workflow
-
-Provide a previous SBOM via `options.previousBom` to `scanProject()` or the `--previous-sbom` CLI flag:
-
-```javascript
-import { scanProject } from 'npm-sbom-tool';
-
-// Pass previousBom to scanProject
-const result = await scanProject('./my-app', { previousBom: previousBomObject });
-
-console.log(result.comparison.status);  // 'completed' | 'failed'
-console.log(result.comparison.summary); // { added, removed, changed, unchanged }
-console.log(result.comparison.added);   // Added dependencies with explanations
-console.log(result.comparison.changed); // Upgraded/downgraded dependencies with explanations
-```
-
-When no previous SBOM is provided, normal scanning proceeds with `result.comparison: null`.
-
-### Standalone Usage
-
-```javascript
-import { compareInventories, scanProject } from 'npm-sbom-tool';
-
-const previous = await scanProject('./v1-project');
-const current = await scanProject('./v2-project');
-
-const comparison = compareInventories(previous.bom, current.bom);
-
-console.log(comparison.status);  // 'completed' | 'failed'
-console.log(comparison.summary); // { added, removed, changed, unchanged }
-console.log(comparison.changed); // Detailed upgrade, downgrade, and metadata diffs
-```
-
-### Accepted Inputs & Output Structure
-
-- **Expected Inputs**: Any pair of CycloneDX BOM objects (`bomFormat: 'CycloneDX'`, `metadata`, or `components` array) or internal `scanProject()` results. Root application entries (`metadata.component` / `isRoot: true`) are excluded by default so empty dependency inventories yield zero counts; pass `{ includeRoot: true }` to include them when comparing `scanResult` objects.
-- **Output Shape**:
-  ```javascript
-  {
-    status: 'completed' | 'failed',
-    summary: { added: 0, removed: 0, changed: 0, unchanged: 0 },
-    added: [],
-    removed: [],
-    changed: [],
-    unchanged: [],
-    errors: [],
-    warnings: []
-  }
-  ```
-
-### Change Classifications
-
-- **`added`**: Present in `currentBom` and absent in `previousBom`.
-- **`removed`**: Present in `previousBom` and absent in `currentBom`.
-- **`upgrade`**: Matched package whose `currentVersion` is strictly greater than `previousVersion` according to SemVer 2.0.0.
-- **`downgrade`**: Matched package whose `currentVersion` is strictly less than `previousVersion` according to SemVer 2.0.0.
-- **`metadata-changed`**: Version is unchanged (or SemVer-equivalent), while identifiers or metadata (`purl`, `bomRef`, `hashes`, `externalReferences`, `licenses`, `type`, `isFirstParty`) changed.
-- **`version-changed`**: Versions differ, but one is missing or non-SemVer (e.g. Git URLs or tags), so neither upgrade nor downgrade is invented.
-- **`unchanged`**: Matched package with identical version and metadata.
-
-### Matching Strategy & Limitations
-
-- Components are matched across inventories using a **versionless canonical identity** (`<ecosystem>:<fullName>`), preferring a valid parsed PURL first and falling back to `<ecosystem>:<group/name>` or `<ecosystem>:<name>`. This ensures upgrades/downgrades are paired cleanly rather than reported as a removal plus an addition.
-- Multi-version packages (e.g. `shared-dep@1.5.0` and `shared-dep@2.0.0`) are paired in deterministic passes: exact version + metadata matches first, then same-version matches, then matching `bom-ref`, then positional pairing.
-- **Limitations**: Non-SemVer version strings cannot be ordered as upgrades or downgrades (`version-changed` + warning emitted); components missing both a valid PURL and a package `name` are skipped with an `UNRESOLVABLE_COMPONENT_IDENTITY` warning; package renames (name changes) appear as a removal plus an addition.
-
-For the complete specification, see [Dependency Comparison Specification](docs/dependency-comparison.md).
-
-## Programmatic Engine API
-
-The `npm-sbom-tool` package exposes unified programmatic entry points connecting directly to the engine and scanner pipeline:
+### Engine Entry Points
 
 ```javascript
 import {
@@ -727,68 +379,252 @@ import {
   executeSbom,
   executeAudit,
   buildCombinedReport,
-  writeMultiFileOutput,
-  scanProject,
-  compareInventories,
-  detectAnomalies,
-  validateStructure,
+  generateReportFiles,
 } from 'npm-sbom-tool';
 
-// 1. Complete scan with full analysis features
+// 1. Full-pipeline scan
 const scanResult = await executeScan('./my-project', { full: true });
 
-// 2. Pure CycloneDX SBOM generation without security overhead
+// 2. Pure CycloneDX SBOM generation
 const sbomResult = await executeSbom('./my-project');
 if (sbomResult.success) {
   console.log('CycloneDX 1.7 SBOM:', sbomResult.bom);
 }
 
-// 3. Security vulnerability and anomaly audit
+// 3. Security audit
 const auditReport = await executeAudit('./my-project', {
   vuln: true,
   anomaly: true,
   previousSbom: './prev-bom.cdx.json',
 });
 
-// 4. Build comprehensive combined report object (aliased to generateReport)
+// 4. Combined report object
 const report = buildCombinedReport(scanResult);
 
-// 5. Write standard four output files (sbom.json, vulnerabilities.json, anomalies.json, report.json)
+// 5. Write multi-file report directory
 generateReportFiles('./output', scanResult);
 ```
 
-## Report Generation (Order 19)
+### Project Scanner (`scanProject`)
 
-The report generation module (`src/reportGenerator.js`) consumes scan results produced by the engine and outputs structured data and files:
+```javascript
+import { scanProject, scanProjectSync } from 'npm-sbom-tool';
 
-### Output Files
+// Asynchronously scan an npm project
+const result = await scanProject('./my-project', {
+  vulnerabilities: true, // Optional: enable OSV checking
+  anomalies: true,       // Optional: enable anomaly detection
+});
 
-When running a full scan or specifying an output directory (`--full`, `-o <dir>`, `--output-dir <dir>`), four structured JSON files are generated:
+console.log(result.status);          // 'complete' | 'partial' | 'failed'
+console.log(result.projectMetadata); // { name: 'my-project', version: '1.0.0' }
+console.log(result.components);      // Discovered component array
+console.log(result.dependencyEdges); // Graph adjacency list
+console.log(result.bom);             // CycloneDX 1.7 SBOM object (or null)
+console.log(result.validation);      // { valid: true, errors: [], warnings: [] }
+console.log(result.vulnerabilities); // Vulnerability findings and summary
+console.log(result.anomalies);       // Anomaly findings and summary
 
-1. **`sbom.json`**: CycloneDX 1.7 JSON Software Bill of Materials (valid against schema).
-2. **`vulnerabilities.json`**: Vulnerability findings, severity breakdown, and any query errors/warnings (or `{ "status": "skipped" }` if analysis was disabled).
-3. **`anomalies.json`**: Structural and metadata anomalies detected across components and the dependency graph (or `{ "status": "skipped" }` if disabled).
-4. **`report.json`**: Combined structured summary containing:
-   - **Project Details**: Project name, version, status, and scan metadata.
-   - **Component Statistics**: Total, direct, transitive, and workspace component counts.
-   - **Vulnerability Summary**: Severity breakdown (`critical`, `high`, `medium`, `low`, `unknown`) and total finding counts.
-   - **Anomaly Summary**: Total anomaly counts grouped by severity (`error`, `warning`, `info`) and category type.
-   - **Dependency Comparison**: Detailed summary of added, removed, modified, and unchanged dependencies when a previous SBOM is supplied.
+// Synchronous scan (guaranteed identical result)
+const syncResult = scanProjectSync('./my-project');
+```
 
-### Status & Edge Case Handling
+### CycloneDX 1.7 Generation & Structural Validation
 
-- **Zero Findings vs. Skipped vs. Failed**:
-  - **Zero findings**: Represented with `status: 'completed'` and `summary.total: 0`.
-  - **Skipped analysis**: Represented with `null` in `report.json` and `{ "status": "skipped", "reason": "..." }` in dedicated artifact files. Never reported as 0 findings.
-  - **Failed analysis**: Recorded with `status: 'failed'` and an `errors` array; failure in vulnerability or anomaly analysis does not mark the core SBOM generation as failed.
-  - **Partial scan**: If dependency resolution is partial or lockfile is missing, `report.json` reflects `status: 'partial'` while preserving discovered components.
+```javascript
+import {
+  generateCycloneDX,
+  validateStructure,
+  validatePurl,
+} from 'npm-sbom-tool';
 
-### CLI Usage
+// 1. Generate CycloneDX 1.7 JSON SBOM from components and dependency edges
+const bom = generateCycloneDX(components, dependencyEdges, {
+  name: 'my-project',
+  version: '1.0.0',
+});
+
+// 2. Offline structural validation
+const validation = validateStructure(bom);
+console.log(validation.valid);    // boolean
+console.log(validation.errors);   // string[]
+console.log(validation.warnings); // string[]
+
+// 3. Standalone Package URL (PURL) validation
+const purlCheck = validatePurl('pkg:npm/%40babel/core@7.24.0');
+console.log(purlCheck.valid);     // true
+```
+
+### First-Party Component & Workspace Discovery
+
+`npm-sbom-tool` provides built-in discovery for root projects and npm workspaces:
+
+- **Root Application**: Placed in `metadata.component` with `isFirstParty: true` and `origin: 'first-party'`.
+- **Local Workspaces**: Discovered via `"workspaces": [...]` array or object configuration. Supports single wildcards (`*`), recursive wildcards (`**`), character wildcards (`?`), and pattern negations (`!pattern`).
+- **Symlinks & Resolvers**: Resolves workspace symlinks (`link: true`) in `package-lock.json` v2/v3 without duplicating components.
+- **Classification**: Distinguishes first-party local packages (`isFirstParty: true`, `dependencyType: 'workspace'`) from external registry packages (`isFirstParty: false`, `dependencyType: 'direct' | 'transitive'`).
+
+```javascript
+import { discoverFirstPartyComponents } from 'npm-sbom-tool';
+
+const discovery = await discoverFirstPartyComponents('./my-monorepo');
+console.log(discovery.rootComponent); // Root application metadata
+console.log(discovery.workspaces);    // Discovered workspace packages
+```
+
+### OSV Vulnerability Detection Pipeline
+
+The vulnerability pipeline queries the [OSV API](https://osv.dev/) in concurrent batches and matches advisories against installed versions using SemVer 2.0.0 rules:
+
+```javascript
+import { checkVulnerabilities, queryPackage, queryPackages } from 'npm-sbom-tool';
+
+// Query a single package
+const single = await queryPackage({ name: 'lodash', version: '4.17.20' });
+
+// Query a batch of packages
+const batch = await queryPackages([
+  { name: 'lodash', version: '4.17.20' },
+  { name: 'express', version: '4.18.2' },
+]);
+
+// Run vulnerability check on an existing CycloneDX BOM
+const check = await checkVulnerabilities(bom, {
+  concurrency: 8,
+  timeout: 10000,
+});
+console.log(check.status);   // 'completed' | 'partial' | 'failed'
+console.log(check.findings); // Array of normalized findings
+```
+
+### Anomaly Detection
+
+Identifies supply chain smells across metadata and graph relationships:
+
+```javascript
+import { detectAnomalies } from 'npm-sbom-tool';
+
+const { anomalies, summary } = detectAnomalies(bom, { summary: true });
+console.log(summary); // { total: 1, bySeverity: { error: 0, warning: 1, info: 0 }, byType: { MISSING_PURL: 1 } }
+```
+
+### SBOM Inventory Comparison
+
+Compares two SBOM inventories to classify dependency changes:
+
+```javascript
+import { compareInventories } from 'npm-sbom-tool';
+
+const comparison = compareInventories(previousBom, currentBom);
+console.log(comparison.status);  // 'completed' | 'failed'
+console.log(comparison.summary); // { added, removed, changed, unchanged }
+console.log(comparison.added);   // Added dependencies
+console.log(comparison.changed); // Upgrades, downgrades, and metadata changes
+```
+
+### Report Generation
+
+```javascript
+import { buildCombinedReport, generateReportFiles } from 'npm-sbom-tool';
+
+// Build combined report JSON object
+const report = buildCombinedReport(scanResult);
+
+// Emit standard four files: sbom.json, vulnerabilities.json, anomalies.json, report.json
+generateReportFiles('./output', scanResult);
+```
+
+---
+
+## Development Setup
+
+To contribute or develop on `npm-sbom-tool`:
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/pankaj-codes06/SBOM-TOOL.git
+   cd SBOM-TOOL
+   ```
+
+2. **Install development dependencies**:
+   ```bash
+   npm install
+   ```
+
+3. **Verify syntax across all modules**:
+   ```bash
+   npm run check
+   ```
+
+4. **Run the CLI directly from source**:
+   ```bash
+   node src/cli.js --help
+   node src/cli.js scan ./fixtures/simple-project
+   ```
+
+---
+
+## Test Execution
+
+`npm-sbom-tool` uses Node.js's built-in native test runner (`node --test`), requiring no third-party test runners or transpilation.
+
+### Run Full Test Suite
+
+Execute all 540+ tests across the entire suite:
 
 ```bash
-# Run full scan producing all 4 JSON files in default ./output directory
-node src/cli.js scan ./my-project --full
-
-# Specify custom output directory
-node src/cli.js scan ./my-project --full -o ./reports
+npm test
 ```
+
+### Targeted Test Scripts
+
+Execute individual sub-suites for specific components:
+
+| Command | Target Module |
+|---|---|
+| `npm run test:cli` | CLI commands (`scan`, `sbom`, `audit`, argument parsing, exit codes) |
+| `npm run test:scanner` | Manifest and lockfile discovery and scanner orchestration |
+| `npm run test:parser` | `package.json` and `package-lock.json` parsing |
+| `npm run test:resolver` | Dependency resolution and classification |
+| `npm run test:graph` | Standalone dependency graph construction |
+| `npm run test:workspace` | First-party and monorepo workspace discovery |
+| `npm run test:cyclonedx` | CycloneDX 1.7 SBOM generation |
+| `npm run test:validator` | CycloneDX structural and schema validation |
+| `npm run test:osv` | OSV API client queries and error handling |
+| `npm run test:matcher` | SemVer matching and range evaluation |
+| `npm run test:findings` | Finding extraction and deduplication |
+| `npm run test:vuln` | End-to-end vulnerability pipeline integration |
+| `npm run test:anomaly` | SBOM metadata and graph anomaly detection |
+| `npm run test:compare` | SBOM inventory diffing and change classification |
+| `npm run test:integration` | End-to-end pipeline and integration scenarios |
+| `npm run test:order18` | Engine orchestration and pipeline options |
+| `npm run test:order19` | Multi-file and executive report generation |
+| `npm run test:order20` | Scanner end-to-end fixture validation |
+| `npm run test:order21` | Security SBOM generation and CycloneDX 1.7 validation |
+| `npm run check` | Static syntax check on all JavaScript files via `node --check` |
+
+---
+
+## Known Limitations
+
+1. **Package Manager Scope**: `npm-sbom-tool` specifically targets the **npm** ecosystem (`package.json` and `package-lock.json`). Projects managed exclusively by Yarn or pnpm are identified and safely rejected with `UNSUPPORTED_PACKAGE_MANAGER`.
+2. **Lockfile Dependency**: Complete, referentially sound CycloneDX SBOM generation requires an existing `package-lock.json` (v1, v2, or v3). Scanning a project without a lockfile generates discovered components with `status: 'partial'`, and leaves `bom: null`.
+3. **OSV Network Connectivity**: Vulnerability detection requires outbound HTTPS connectivity to `https://api.osv.dev`. When the network is unavailable or times out, the tool records explicit error entries rather than falsely reporting 0 vulnerabilities.
+4. **Non-SemVer Version Identifiers**: Dependency versions pointing to Git commit SHAs, URLs, or local tarballs cannot be evaluated against SemVer vulnerability ranges or upgrade/downgrade diffs; these are flagged with `unable-to-evaluate` or `version-changed`.
+5. **Release Blocker — Physical LICENSE File**: While `package.json` specifies `"license": "MIT"`, the physical `LICENSE` file is pending repository owner confirmation prior to public npm release.
+
+---
+
+## License Information
+
+This project is licensed under the **MIT License** as declared in `package.json`.
+
+*Note: Creation and publication of the standalone `LICENSE` file in the repository root is pending final authorization from the project owner before public release.*
+
+---
+
+## Repository & Issue Reporting
+
+- **Source Code**: [https://github.com/pankaj-codes06/SBOM-TOOL](https://github.com/pankaj-codes06/SBOM-TOOL)
+- **Issue Tracker**: [https://github.com/pankaj-codes06/SBOM-TOOL/issues](https://github.com/pankaj-codes06/SBOM-TOOL/issues)
+- **Author & Maintainer**: Pankaj Kumar
