@@ -79,24 +79,45 @@ export function discoverProjectFiles(projectPath) {
     return { resolvedPath, packageJsonPath: null, packageLockPath: null, errors, warnings };
   }
 
-  // 3. Detect unsupported package managers
+  // 3. Locate package-lock.json
+  const packageLockPath = path.join(resolvedPath, 'package-lock.json');
+  let hasPackageLock = false;
+  try {
+    fs.accessSync(packageLockPath, fs.constants.R_OK);
+    hasPackageLock = true;
+  } catch {
+    // not accessible
+  }
+
+  // 4. Detect unsupported package managers
+  const unsupportedFound = [];
   for (const [lockfileName, managerName] of Object.entries(UNSUPPORTED_LOCKFILES)) {
     const lockfilePath = path.join(resolvedPath, lockfileName);
     if (fs.existsSync(lockfilePath)) {
-      errors.push(createScanError(
-        ErrorCodes.UNSUPPORTED_PACKAGE_MANAGER,
-        `Unsupported package manager detected: ${managerName} (found ${lockfileName}). Only npm is supported.`,
-        { file: lockfileName, packageManager: managerName }
-      ));
+      unsupportedFound.push({ file: lockfileName, packageManager: managerName });
     }
   }
 
-  // If unsupported lockfiles were found, return early
-  if (errors.length > 0) {
-    return { resolvedPath, packageJsonPath: null, packageLockPath: null, errors, warnings };
+  if (unsupportedFound.length > 0) {
+    if (hasPackageLock) {
+      // Valid npm lockfile exists; log diagnostic warnings rather than failing the scan
+      for (const item of unsupportedFound) {
+        warnings.push(`Extraneous lockfile detected: ${item.file} (${item.packageManager}). Proceeding with npm package-lock.json.`);
+      }
+    } else {
+      // Non-npm project without npm lockfile; record fatal error
+      for (const item of unsupportedFound) {
+        errors.push(createScanError(
+          ErrorCodes.UNSUPPORTED_PACKAGE_MANAGER,
+          `Unsupported package manager detected: ${item.packageManager} (found ${item.file}). Only npm is supported.`,
+          { file: item.file, packageManager: item.packageManager }
+        ));
+      }
+      return { resolvedPath, packageJsonPath: null, packageLockPath: null, errors, warnings };
+    }
   }
 
-  // 4. Locate package.json
+  // 5. Locate package.json
   const packageJsonPath = path.join(resolvedPath, 'package.json');
   let hasPackageJson = false;
   try {
@@ -112,16 +133,6 @@ export function discoverProjectFiles(projectPath) {
       'package.json not found in the project directory.',
       { file: 'package.json', path: resolvedPath }
     ));
-  }
-
-  // 5. Locate package-lock.json
-  const packageLockPath = path.join(resolvedPath, 'package-lock.json');
-  let hasPackageLock = false;
-  try {
-    fs.accessSync(packageLockPath, fs.constants.R_OK);
-    hasPackageLock = true;
-  } catch {
-    // not accessible
   }
 
   if (hasPackageJson && !hasPackageLock) {

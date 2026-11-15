@@ -130,4 +130,15 @@ describe('parsePackageLock', () => {
     assert.equal(result.errors[0].code, 'UNSUPPORTED_LOCKFILE_VERSION');
     assert.ok(result.errors[0].message.includes('Unsupported npm lockfile version: 1'));
   });
+
+  it('rejects lockfile-v1-project fixture with UNSUPPORTED_LOCKFILE_VERSION', () => {
+    const filePath = path.join(fixturesDir, 'lockfile-v1-project', 'package-lock.json');
+    const result = parsePackageLock(filePath);
+
+    assert.equal(result.data, null);
+    assert.equal(result.lockfileVersion, 1);
+    assert.ok(result.errors.length > 0);
+    assert.equal(result.errors[0].code, 'UNSUPPORTED_LOCKFILE_VERSION');
+    assert.ok(result.errors[0].message.includes('Unsupported npm lockfile version: 1'));
+  });
 });
