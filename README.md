@@ -628,4 +628,4 @@ This project is licensed under the **MIT License** as declared in `package.json`
 - **Source Code**: [https://github.com/nithyarajmudhaliyar/SBOM-TOOL](https://github.com/nithyarajmudhaliyar/SBOM-TOOL)
 - **Issue Tracker**: [https://github.com/nithyarajmudhaliyar/SBOM-TOOL/issues](https://github.com/nithyarajmudhaliyar/SBOM-TOOL/issues)
 - **Author & Maintainer**: Nithyaraj Mudhaliyar
-- **Team Members: Harshit Chand & Pankaj Kumar
+- **Team Members**: Harshit Chand & Pankaj Kumar
