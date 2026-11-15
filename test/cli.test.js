@@ -19,11 +19,22 @@ const defaultMockLoaderPath = path.join(tempLoaderDir, 'defaultMockLoader.js');
 // Mock loader that returns empty vulnerabilities (safe offline query)
 fs.writeFileSync(
   defaultMockLoaderPath,
-  `globalThis.fetch = async () => ({
-    ok: true,
-    status: 200,
-    json: async () => ({ vulns: [] })
-  });`,
+  `globalThis.fetch = async (url, opts) => {
+    let body = null;
+    try { body = opts && opts.body ? JSON.parse(opts.body) : null; } catch {}
+    if (body && Array.isArray(body.queries)) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ results: body.queries.map(() => ({ vulns: [] })) })
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ vulns: [] })
+    };
+  };`,
   'utf8'
 );
 
@@ -364,21 +375,37 @@ describe('CLI Commands Integration Suite', () => {
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cli-audit-mock-'));
 
       const mockLoader = `
-        globalThis.fetch = async () => ({
-          ok: true,
-          status: 200,
-          json: async () => ({
-            vulns: [{
-              id: 'GHSA-test-mock-audit',
-              summary: 'Mock High Vulnerability',
-              severity: [{ type: 'CVSS_V3', score: '7.5' }],
-              affected: [{
-                package: { name: 'is-odd', ecosystem: 'npm' },
-                ranges: [{ type: 'SEMVER', events: [{ introduced: '0' }, { fixed: '4.0.0' }] }]
-              }]
+        globalThis.fetch = async (url, opts) => {
+          let body = null;
+          try { body = opts && opts.body ? JSON.parse(opts.body) : null; } catch {}
+          const testVuln = {
+            id: 'GHSA-test-mock-audit',
+            summary: 'Mock High Vulnerability',
+            severity: [{ type: 'CVSS_V3', score: '7.5' }],
+            affected: [{
+              package: { name: 'is-odd', ecosystem: 'npm' },
+              ranges: [{ type: 'SEMVER', events: [{ introduced: '0' }, { fixed: '4.0.0' }] }]
             }]
-          })
-        });
+          };
+          if (body && Array.isArray(body.queries)) {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                results: body.queries.map(q => ({
+                  vulns: q.package.name === 'is-odd' ? [testVuln] : []
+                }))
+              })
+            };
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              vulns: [testVuln]
+            })
+          };
+        };
       `;
       const mockLoaderPath = path.join(tmpDir, 'loader.js');
       fs.writeFileSync(mockLoaderPath, mockLoader, 'utf8');

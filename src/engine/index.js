@@ -46,9 +46,14 @@ export async function runEngine(targetPath, options = {}) {
 }
 
 /**
- * Alias for runEngine to provide intuitive domain-specific naming.
+ * Generates a complete, validated CycloneDX SBOM for an npm project.
+ * Aliases executeSbom for a consistent and intuitive public API.
+ *
+ * @param {string} projectPath - Path to project directory.
+ * @param {object} [options={}] - Scan and generation options.
+ * @returns {Promise<object>} Result containing success boolean, bom, and diagnostic info.
  */
-export const generateSbom = runEngine;
+export const generateSbom = executeSbom;
 
 /**
  * Connects the 'scan' command workflow to the engine.
@@ -147,8 +152,38 @@ export async function executeSbom(projectPath, options = {}) {
  * @returns {Promise<object>} Audit report object.
  */
 export async function executeAudit(projectPath, options = {}) {
-  const runVuln = Boolean(options.vuln) || (!options.vuln && !options.anomaly);
-  const runAnomaly = Boolean(options.anomaly) || (!options.vuln && !options.anomaly);
+  // Support both CLI flags (vuln, anomaly) and canonical scanner options (vulnerabilities, anomalies)
+  const hasVuln = options.vuln !== undefined
+    ? Boolean(options.vuln)
+    : (options.vulnerabilities !== undefined ? Boolean(options.vulnerabilities) : undefined);
+  const hasAnomaly = options.anomaly !== undefined
+    ? Boolean(options.anomaly)
+    : (options.anomalies !== undefined ? Boolean(options.anomalies) : undefined);
+
+  let runVuln;
+  let runAnomaly;
+
+  if (hasVuln === undefined && hasAnomaly === undefined) {
+    // Neither specified: default to running both analyses
+    runVuln = true;
+    runAnomaly = true;
+  } else if (hasVuln !== undefined && hasAnomaly !== undefined) {
+    // Both explicitly specified: respect both exact boolean flags
+    runVuln = hasVuln;
+    runAnomaly = hasAnomaly;
+  } else if (hasVuln !== undefined) {
+    // Only vuln is specified:
+    // If true, focus on vuln only (disables unspecified anomaly analysis).
+    // If false, exclude vuln (runs remaining anomaly analysis).
+    runVuln = hasVuln;
+    runAnomaly = !hasVuln;
+  } else {
+    // Only anomaly is specified:
+    // If true, focus on anomaly only (disables unspecified vuln analysis).
+    // If false, exclude anomaly (runs remaining vuln analysis).
+    runAnomaly = hasAnomaly;
+    runVuln = !hasAnomaly;
+  }
 
   const scanOpts = {
     ...options,
@@ -244,4 +279,4 @@ export async function executeAudit(projectPath, options = {}) {
   return report;
 }
 
-export default runEngine;
+export default generateSbom;
