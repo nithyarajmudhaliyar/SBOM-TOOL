@@ -68,7 +68,7 @@ Furthermore, `npm-sbom-tool` provides integrated security auditing against the [
 
 - **Node.js**: `>= 18.0.0` (Node.js 20+ LTS recommended). Tested across Node.js 18, 20, and 22.
 - **npm**: `>= 9.0.0`
-- **Supported Package Managers**: `npm` with `package-lock.json` versions 1, 2, and 3. Projects using Yarn or pnpm are identified and rejected with standard diagnostic errors.
+- **Supported Package Managers**: `npm` with `package-lock.json` versions 2 and 3. Legacy lockfile version 1 is unsupported and receives a structured `UNSUPPORTED_LOCKFILE_VERSION` error. Projects using Yarn or pnpm without an npm lockfile are identified and rejected with `UNSUPPORTED_PACKAGE_MANAGER`.
 - **Network Access**: Required only for OSV vulnerability queries (`https://api.osv.dev`). All core SBOM generation, workspace discovery, validation, and anomaly detection operate 100% offline.
 
 ---
@@ -439,9 +439,14 @@ import {
 } from 'npm-sbom-tool';
 
 // 1. Generate CycloneDX 1.7 JSON SBOM from components and dependency edges
-const bom = generateCycloneDX(components, dependencyEdges, {
-  name: 'my-project',
-  version: '1.0.0',
+const bom = generateCycloneDX({
+  rootRef,
+  components,
+  dependencyEdges,
+  projectMetadata: {
+    name: 'my-project',
+    version: '1.0.0',
+  },
 });
 
 // 2. Offline structural validation
@@ -542,7 +547,7 @@ To contribute or develop on `npm-sbom-tool`:
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/pankaj-codes06/SBOM-TOOL.git
+   git clone https://github.com/nithyarajmudhaliyar/SBOM-TOOL.git
    cd SBOM-TOOL
    ```
 
@@ -608,18 +613,15 @@ Execute individual sub-suites for specific components:
 ## Known Limitations
 
 1. **Package Manager Scope**: `npm-sbom-tool` specifically targets the **npm** ecosystem (`package.json` and `package-lock.json`). Projects managed exclusively by Yarn or pnpm are identified and safely rejected with `UNSUPPORTED_PACKAGE_MANAGER`.
-2. **Lockfile Dependency**: Complete, referentially sound CycloneDX SBOM generation requires an existing `package-lock.json` (v1, v2, or v3). Scanning a project without a lockfile generates discovered components with `status: 'partial'`, and leaves `bom: null`.
+2. **Lockfile Dependency**: Complete, referentially sound CycloneDX SBOM generation requires an existing `package-lock.json` (v2 or v3). Scanning a project without a lockfile generates discovered components with `status: 'partial'`, and leaves `bom: null`. Projects with legacy lockfile v1 receive a structured `UNSUPPORTED_LOCKFILE_VERSION` error.
 3. **OSV Network Connectivity**: Vulnerability detection requires outbound HTTPS connectivity to `https://api.osv.dev`. When the network is unavailable or times out, the tool records explicit error entries rather than falsely reporting 0 vulnerabilities.
 4. **Non-SemVer Version Identifiers**: Dependency versions pointing to Git commit SHAs, URLs, or local tarballs cannot be evaluated against SemVer vulnerability ranges or upgrade/downgrade diffs; these are flagged with `unable-to-evaluate` or `version-changed`.
-5. **Release Blocker — Physical LICENSE File**: While `package.json` specifies `"license": "MIT"`, the physical `LICENSE` file is pending repository owner confirmation prior to public npm release.
 
 ---
 
 ## License Information
 
-This project is licensed under the **MIT License** as declared in `package.json`.
-
-*Note: Creation and publication of the standalone `LICENSE` file in the repository root is pending final authorization from the project owner before public release.*
+This project is licensed under the **MIT License** as declared in `package.json` and the root `LICENSE` file.
 
 ---
 

@@ -7,6 +7,12 @@ export {
   default,
 } from './engine/index.js';
 export {
+  ScanStatus,
+  ErrorCodes,
+  ScanError,
+  createScanError,
+} from './errors.js';
+export {
   generateReport,
   generateReportFiles,
   buildCombinedReport,
@@ -25,7 +31,7 @@ export {
   classifyComponents,
   isVersionCompatible,
 } from './workspaceDiscovery.js';
-export { queryPackage, queryPackages, OsvError } from './osvClient.js';
+export { queryPackage, queryPackages, queryBatch, OsvError } from './osvClient.js';
 export {
   matchVulnerabilities,
   isVersionAffected,

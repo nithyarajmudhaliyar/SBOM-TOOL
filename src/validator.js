@@ -354,9 +354,13 @@ export async function validateAgainstSchema(bom, schema) {
       })),
     };
   } catch (err) {
+    const isMissingModule = err.code === 'ERR_MODULE_NOT_FOUND' || err.message?.includes('Cannot find package');
+    const msg = isMissingModule
+      ? `Schema validation requires "ajv" and "ajv-formats" dependencies: ${err.message}`
+      : `Schema validation failed: ${err.message}`;
     return {
       valid: false,
-      errors: [`Schema validation failed: ${err.message}`],
+      errors: [msg],
     };
   }
 }

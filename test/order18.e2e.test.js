@@ -28,11 +28,22 @@ const defaultMockLoaderPath = path.join(tempLoaderDir, 'defaultMockLoader.js');
 // Mock loader that returns empty vulnerabilities (zero-network)
 fs.writeFileSync(
   defaultMockLoaderPath,
-  `globalThis.fetch = async () => ({
-    ok: true,
-    status: 200,
-    json: async () => ({ vulns: [] })
-  });`,
+  `globalThis.fetch = async (url, opts) => {
+    let body = null;
+    try { body = opts && opts.body ? JSON.parse(opts.body) : null; } catch {}
+    if (body && Array.isArray(body.queries)) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ results: body.queries.map(() => ({ vulns: [] })) })
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ vulns: [] })
+    };
+  };`,
   'utf8'
 );
 

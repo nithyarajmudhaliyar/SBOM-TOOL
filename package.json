@@ -11,19 +11,20 @@
   "files": [
     "src",
     "README.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=18.0.0"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pankaj-codes06/SBOM-TOOL.git"
+    "url": "git+https://github.com/nithyarajmudhaliyar/SBOM-TOOL.git"
   },
   "bugs": {
-    "url": "https://github.com/pankaj-codes06/SBOM-TOOL/issues"
+    "url": "https://github.com/nithyarajmudhaliyar/SBOM-TOOL/issues"
   },
-  "homepage": "https://github.com/pankaj-codes06/SBOM-TOOL#readme",
+  "homepage": "https://github.com/nithyarajmudhaliyar/SBOM-TOOL#readme",
   "scripts": {
     "test": "node --test test/**/*.test.js",
     "test:cli": "node --test test/cli.test.js",
@@ -59,9 +60,9 @@
     "cyclonedx",
     "software-bill-of-materials"
   ],
-  "author": "Pankaj Kumar",
+  "author": "Nithyaraj Mudhaliyar",
   "license": "MIT",
-  "devDependencies": {
+  "dependencies": {
     "ajv": "^8.17.0",
     "ajv-formats": "^3.0.1"
   }

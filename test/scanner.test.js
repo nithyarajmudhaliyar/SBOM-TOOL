@@ -1,5 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scanProject } from '../src/scanner/index.js';
@@ -371,6 +373,63 @@ describe('Scanner Integration Tests', () => {
       assert.deepEqual(result.components, []);
       assert.deepEqual(result.dependencyEdges, {});
       assert.equal(result.bom, null);
+    });
+  });
+
+  describe('Lockfile Conflict and Package Manager Detection Policy', () => {
+    it('scans successfully and warns when package-lock.json coexists with yarn.lock', async () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sbom-ext-yarn-'));
+      try {
+        const pkgJson = fs.readFileSync(path.join(fixturesDir, 'simple-project', 'package.json'), 'utf8');
+        const lockJson = fs.readFileSync(path.join(fixturesDir, 'simple-project', 'package-lock.json'), 'utf8');
+        fs.writeFileSync(path.join(tmpDir, 'package.json'), pkgJson);
+        fs.writeFileSync(path.join(tmpDir, 'package-lock.json'), lockJson);
+        fs.writeFileSync(path.join(tmpDir, 'yarn.lock'), '# yarn lockfile content\n');
+
+        const result = await scanProject(tmpDir);
+
+        assert.equal(result.status, 'complete');
+        assert.equal(result.errors.length, 0);
+        assert.ok(result.warnings.some(w => typeof w === 'string' && w.includes('Extraneous lockfile detected: yarn.lock (Yarn)')));
+        assert.ok(result.bom);
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it('scans successfully and warns when package-lock.json coexists with pnpm-lock.yaml', async () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sbom-ext-pnpm-'));
+      try {
+        const pkgJson = fs.readFileSync(path.join(fixturesDir, 'simple-project', 'package.json'), 'utf8');
+        const lockJson = fs.readFileSync(path.join(fixturesDir, 'simple-project', 'package-lock.json'), 'utf8');
+        fs.writeFileSync(path.join(tmpDir, 'package.json'), pkgJson);
+        fs.writeFileSync(path.join(tmpDir, 'package-lock.json'), lockJson);
+        fs.writeFileSync(path.join(tmpDir, 'pnpm-lock.yaml'), 'lockfileVersion: 5.4\n');
+
+        const result = await scanProject(tmpDir);
+
+        assert.equal(result.status, 'complete');
+        assert.equal(result.errors.length, 0);
+        assert.ok(result.warnings.some(w => typeof w === 'string' && w.includes('Extraneous lockfile detected: pnpm-lock.yaml (pnpm)')));
+        assert.ok(result.bom);
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it('rejects with UNSUPPORTED_PACKAGE_MANAGER for pnpm-only project without package-lock.json', async () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sbom-pnpm-only-'));
+      try {
+        fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify({ name: 'pnpm-app', version: '1.0.0' }));
+        fs.writeFileSync(path.join(tmpDir, 'pnpm-lock.yaml'), 'lockfileVersion: 5.4\n');
+
+        const result = await scanProject(tmpDir);
+
+        assert.equal(result.status, 'failed');
+        assert.ok(result.errors.some(e => e.code === 'UNSUPPORTED_PACKAGE_MANAGER' && e.message.includes('pnpm')));
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
     });
   });
 });

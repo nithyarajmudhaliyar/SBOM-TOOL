@@ -589,5 +589,16 @@ describe('CycloneDX Validator', () => {
       assert.equal(res.valid, false);
       assert.ok(res.errors.length > 0);
     });
+
+    it('returns error when schema compilation fails', async () => {
+      const bom = createValidBom();
+      const invalidSchema = {
+        type: 'invalid-type-that-ajv-rejects',
+      };
+
+      const res = await validateAgainstSchema(bom, invalidSchema);
+      assert.equal(res.valid, false);
+      assert.ok(res.errors[0].includes('Schema validation failed'));
+    });
   });
 });
